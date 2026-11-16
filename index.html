@@ -11,6 +11,15 @@
     <!-- Alpine.js for lightweight reactivity -->
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 
+    <!-- Supabase（自動保存班級紀錄） -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script>
+        window.SB = {
+            URL: "https://teagejtanenbfhuqrlee.supabase.co",
+            KEY: "sb_publishable_zfRCUmgK_BDoE0h8CTpPXA_G4xLpsm9",
+        };
+    </script>
+
     <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
@@ -73,6 +82,9 @@
             background: #94a3b8;
             border-radius: 8px;
         }
+
+        /* Alpine.js: hide until initialized */
+        [x-cloak] { display: none !important; }
     </style>
 </head>
 <body x-data="classroomApp()" x-init="initApp()" class="min-h-screen text-slate-800 p-2 sm:p-4 md:p-6 pb-20 select-none">
@@ -94,19 +106,13 @@
 
         <!-- REALTIME CLOCK & TOOLBAR BUTTONS -->
         <div class="flex items-center flex-wrap gap-2 md:gap-3">
-            <!-- DIRECT OPEN GOOGLE DRIVE / SHEET BUTTON -->
-            <button @click="openGoogleSheet()" class="btn-cute bg-amber-400 hover:bg-amber-300 border-3 border-slate-800 text-slate-900 font-extrabold px-3 py-2 rounded-2xl text-xs md:text-sm shadow-cute-sm flex items-center gap-1.5" title="點擊直接前往您的 Google 雲端試算表或雲端硬碟">
-                <i class="fa-solid fa-folder-open text-base text-amber-950"></i>
-                <span>📂 開啟我的 Google 雲端</span>
-            </button>
-
-            <!-- GOOGLE CLOUD SETTINGS & TEST BUTTON -->
+            <!-- SUPABASE CLOUD STATUS & LOGIN -->
             <button @click="showGoogleModal = true" class="btn-cute bg-emerald-400 hover:bg-emerald-300 border-3 border-slate-800 text-slate-900 font-extrabold px-3 py-2 rounded-2xl text-xs md:text-sm shadow-cute-sm flex items-center gap-1.5">
                 <i class="fa-solid fa-cloud text-base text-emerald-950"></i>
-                <span>⚙️ 設定 Google 雲端</span>
+                <span x-text="readOnly ? '👁️ 觀看模式（登入才能編輯）' : '☁️ Supabase 自動保存'"></span>
                 <span class="ml-1 text-[10px] px-2 py-0.5 rounded-full font-bold border border-slate-800"
-                      :class="googleStatus === 'connected' ? 'bg-emerald-200 text-emerald-900' : (googleStatus === 'error' ? 'bg-rose-200 text-rose-900' : 'bg-amber-200 text-amber-900')"
-                      x-text="googleStatus === 'connected' ? '🟢 已連線' : (googleStatus === 'error' ? '🔴 連線失敗' : '🟡 未連線')"></span>
+                      :class="cloudStatus === 'connected' ? 'bg-emerald-200 text-emerald-900' : (cloudStatus === 'error' ? 'bg-rose-200 text-rose-900' : 'bg-amber-200 text-amber-900')"
+                      x-text="cloudStatus === 'connected' ? '🟢 已連線' : (cloudStatus === 'error' ? '🔴 離線' : '🟡 未登入')"></span>
             </button>
 
             <!-- HISTORY LOG & EXPORT BUTTON -->
@@ -119,6 +125,15 @@
 
     <!-- MAIN CONTENT AREA -->
     <main class="max-w-7xl mx-auto space-y-5">
+
+        <!-- READ-ONLY BANNER FOR VISITORS -->
+        <div x-show="readOnly" x-cloak class="bg-sky-100 border-3 border-slate-800 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2">
+            <span class="font-extrabold text-sm text-sky-950">👁️ 觀看模式：目前顯示最新班級紀錄，只有老師登入後才能修改</span>
+            <div class="flex items-center gap-2">
+                <span class="text-[11px] font-bold text-sky-800" x-text="'最後更新：' + (lastUpdated || '載入中…')"></span>
+                <button @click="refreshFromCloud()" class="btn-cute bg-white border-2 border-slate-800 rounded-xl px-3 py-1 text-xs font-black">🔄 重新整理</button>
+            </div>
+        </div>
 
         <!-- 1. FIRST SECTION: ATTENDANCE & POINT ACCUMULATION & CHECKIN -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-5">
@@ -146,7 +161,7 @@
                             <div class="flex items-center justify-between mb-2">
                                 <div class="flex items-center gap-2">
                                     <span class="w-6 h-6 rounded-full bg-slate-800 text-white font-bold text-xs flex items-center justify-center" x-text="idx + 1"></span>
-                                    <input type="text" x-model="student.name" @change="saveLocalState()" class="font-black text-base bg-transparent border-b border-dashed border-slate-400 focus:border-slate-800 focus:outline-none w-24">
+                                    <input type="text" x-model="student.name" :disabled="readOnly" @change="saveLocalState()" class="font-black text-base bg-transparent border-b border-dashed border-slate-400 focus:border-slate-800 focus:outline-none w-24">
                                 </div>
                                 <button @click="toggleAttendance(idx)" class="btn-cute px-3 py-1 rounded-xl text-xs font-black border-2 border-slate-800 shadow-xs"
                                         :class="student.present ? 'bg-emerald-400 text-emerald-950' : 'bg-rose-400 text-rose-950'">
@@ -171,8 +186,8 @@
                         <span class="text-xs bg-amber-100 text-amber-800 font-bold px-3 py-1 rounded-full border border-amber-300">加減分帶歡樂與難過音效</span>
                     </div>
                     <div class="flex items-center gap-2">
-                        <button @click="fetchPointsFromGoogle()" class="btn-cute text-xs font-extrabold bg-indigo-500 hover:bg-indigo-400 text-white border-2 border-slate-800 px-3 py-1.5 rounded-xl flex items-center gap-1 shadow-xs">
-                            <i class="fa-solid fa-cloud-arrow-down text-sm"></i> 讀取 Google 雲端累計點數
+                        <button @click="saveLocalState(true)" x-show="!readOnly" class="btn-cute text-xs font-extrabold bg-indigo-500 hover:bg-indigo-400 text-white border-2 border-slate-800 px-3 py-1.5 rounded-xl flex items-center gap-1 shadow-xs">
+                            <i class="fa-solid fa-cloud-arrow-up text-sm"></i> 立即同步到雲端
                         </button>
                         <button @click="resetStudentPoints()" class="text-xs text-rose-500 hover:underline font-bold flex items-center gap-1 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-xl">
                             <i class="fa-solid fa-rotate-left"></i> 今日點數歸零
@@ -317,6 +332,7 @@
 
                 <!-- Whiteboard Editable Canvas -->
                 <div id="whiteboard" contenteditable="true" 
+                     :contenteditable="readOnly ? 'false' : 'true'"
                      @input="saveLocalState()"
                      class="whiteboard-paper flex-1 border-3 border-slate-800 rounded-2xl p-4 overflow-y-auto font-sans text-lg focus:outline-none focus:ring-2 focus:ring-amber-300 leading-relaxed">
                     🌟 歡迎使用班級經營工具版！<br>
@@ -438,129 +454,40 @@
 
     </main>
 
-    <!-- MODAL 1: GOOGLE CLOUD SETTINGS MODAL -->
+    <!-- MODAL 1: SUPABASE CLOUD STATUS -->
     <div x-show="showGoogleModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50" x-cloak>
         <div class="bg-white rounded-3xl border-4 border-slate-800 max-w-lg w-full p-5 md:p-6 shadow-cute space-y-4 max-h-[90vh] overflow-y-auto">
             <div class="flex items-center justify-between border-b-2 border-slate-200 pb-3">
                 <div class="flex items-center gap-2">
                     <span class="text-2xl">☁️</span>
-                    <h3 class="text-xl font-black text-slate-800">Google 雲端試算表連線設定</h3>
+                    <h3 class="text-xl font-black text-slate-800">班級紀錄自動保存（Supabase）</h3>
                 </div>
                 <button @click="showGoogleModal = false" class="text-slate-400 hover:text-slate-800 font-black text-xl">✕</button>
             </div>
 
             <!-- Connection Status Banner -->
             <div class="p-3 rounded-2xl border-2 border-slate-800 font-extrabold text-xs flex items-center justify-between"
-                 :class="googleStatus === 'connected' ? 'bg-emerald-100 text-emerald-950' : (googleStatus === 'error' ? 'bg-rose-100 text-rose-950' : 'bg-amber-100 text-amber-950')">
+                 :class="cloudStatus === 'connected' ? 'bg-emerald-100 text-emerald-950' : (cloudStatus === 'error' ? 'bg-rose-100 text-rose-950' : 'bg-amber-100 text-amber-950')">
                 <div class="flex items-center gap-2">
-                    <span class="text-lg" x-text="googleStatus === 'connected' ? '🟢' : (googleStatus === 'error' ? '🔴' : '🟡')"></span>
-                    <span x-text="googleStatusMsg || '請貼上您的 Google Apps Script 網址'"></span>
+                    <span class="text-lg" x-text="cloudStatus === 'connected' ? '🟢' : (cloudStatus === 'error' ? '🔴' : '🟡')"></span>
+                    <span x-text="cloudStatusMsg"></span>
                 </div>
-                <button @click="testGoogleConnection()" class="btn-cute px-3 py-1 bg-white border-2 border-slate-800 rounded-xl text-xs shadow-xs hover:bg-slate-50">
-                    🧪 測試連線
-                </button>
             </div>
 
-            <div class="space-y-3">
-                <div>
-                    <label class="block font-black text-slate-700 mb-1 text-xs">Google 雲端試算表 / 雲端硬碟網址 (Google Sheet / Drive URL)：</label>
-                    <div class="flex gap-2">
-                        <input type="text" x-model="googleSheetUrl" placeholder="https://docs.google.com/spreadsheets/d/... 或 https://drive.google.com" 
-                               class="flex-1 border-2 border-slate-800 rounded-xl p-2.5 font-mono text-xs focus:ring-2 focus:ring-amber-400 focus:outline-none">
-                        <button @click="openGoogleSheet()" class="btn-cute px-3 py-2 bg-amber-300 hover:bg-amber-200 border-2 border-slate-800 rounded-xl font-black text-xs text-amber-950 shadow-xs flex items-center gap-1 whitespace-nowrap">
-                            🚀 測試前往
-                        </button>
-                    </div>
-                </div>
+            <div class="space-y-2 text-xs font-bold text-slate-600 bg-slate-50 border-2 border-slate-800 rounded-2xl p-3">
+                <p>✨ 每次點名、加減分、打卡、修改白板，都會<b>自動</b>保存到雲端。</p>
+                <p>👁️ 所有人（不用登入）都能看到最新紀錄，每 30 秒自動更新。</p>
+                <p>🔐 只有登入<b>你的 Google 帳號</b>才能修改紀錄。</p>
+            </div>
 
-                <div>
-                    <label class="block font-black text-slate-700 mb-1 text-xs">Google Apps Script Web App URL (自動同步腳本)：</label>
-                    <input type="text" x-model="googleScriptUrl" placeholder="https://script.google.com/macros/s/.../exec" 
-                           class="w-full border-2 border-slate-800 rounded-xl p-2.5 font-mono text-xs focus:ring-2 focus:ring-emerald-400 focus:outline-none">
-                </div>
-
-                <div class="flex items-center justify-between bg-emerald-50 p-3 rounded-2xl border-2 border-slate-800">
-                    <label class="flex items-center gap-2 cursor-pointer font-extrabold text-xs text-emerald-950">
-                        <input type="checkbox" x-model="autoSyncEnabled" @change="saveLocalState()" class="w-4 h-4 rounded border-slate-800 text-emerald-600 focus:ring-emerald-400">
-                        <span>✨ 開啟自動背景紀錄同步</span>
-                    </label>
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="grid grid-cols-2 gap-2 pt-1">
-                    <button @click="testGoogleConnection()" class="btn-cute py-2.5 bg-indigo-200 hover:bg-indigo-100 border-2 border-slate-800 rounded-xl font-black text-indigo-950 text-xs shadow-xs">
-                        🧪 測試是否成功
-                    </button>
-                    <button @click="saveGoogleScriptUrl()" class="btn-cute py-2.5 bg-emerald-400 hover:bg-emerald-300 border-2 border-slate-800 rounded-xl font-black text-emerald-950 text-xs shadow-xs">
-                        💾 儲存網址並連線
-                    </button>
-                </div>
-
-                <!-- Apps Script Code Accordion / Helper -->
-                <div class="border-2 border-slate-800 rounded-2xl p-3 bg-slate-50 space-y-2 mt-2">
-                    <div class="flex items-center justify-between">
-                        <span class="font-extrabold text-xs text-slate-800">💡 連接失敗常見原因檢查：</span>
-                        <button @click="copyAppsScriptCode()" class="btn-cute bg-amber-300 hover:bg-amber-200 border border-slate-800 px-2 py-1 rounded-lg text-[11px] font-black shadow-xs">
-                            📋 複製腳本程式碼
-                        </button>
-                    </div>
-                    <ul class="text-[11px] font-bold text-slate-600 space-y-1 list-disc list-inside">
-                        <li>部署時「誰有權存取 (Who has access)」務必選擇 <strong class="text-rose-600">「所有人 (Anyone)」</strong>。</li>
-                        <li>「執行身份 (Execute as)」需選擇 <strong class="text-indigo-600">「我的帳戶 (Me)」</strong>。</li>
-                        <li>請確定複製的是「網頁應用程式網址」(以 `/exec` 結尾)。</li>
-                    </ul>
-                    <pre x-ref="scriptSnippet" class="hidden">
-function doGet(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName("Points");
-  var result = {};
-  if (sheet) {
-    var data = sheet.getDataRange().getValues();
-    for (var i = 1; i < data.length; i++) {
-      if (data[i][0]) result[data[i][0]] = data[i][1];
-    }
-  }
-  return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
-}
-
-function doPost(e) {
-  try {
-    var data = JSON.parse(e.postData.contents);
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var logSheet = ss.getSheetByName("Daily_Logs");
-    if (!logSheet) {
-      logSheet = ss.insertSheet("Daily_Logs");
-      logSheet.appendRow(["日期", "出席人數", "缺席人數", "學生明細與點數", "白板公告摘要"]);
-    }
-    logSheet.appendRow([data.date, data.presentCount, data.absentCount, JSON.stringify(data.studentDetails), data.wbSummary || ""]);
-    
-    var pointsSheet = ss.getSheetByName("Points");
-    if (!pointsSheet) {
-      pointsSheet = ss.insertSheet("Points");
-      pointsSheet.appendRow(["學生姓名", "歷史累計點數"]);
-    }
-    if (data.pointsData) {
-      var pData = pointsSheet.getDataRange().getValues();
-      var nameRowMap = {};
-      for (var i = 1; i < pData.length; i++) {
-        if (pData[i][0]) nameRowMap[pData[i][0]] = i + 1;
-      }
-      for (var name in data.pointsData) {
-        var addPoints = Number(data.pointsData[name]) || 0;
-        if (nameRowMap[name]) {
-          var curr = Number(pointsSheet.getRange(nameRowMap[name], 2).getValue()) || 0;
-          pointsSheet.getRange(nameRowMap[name], 2).setValue(curr + addPoints);
-        } else {
-          pointsSheet.appendRow([name, addPoints]);
-        }
-      }
-    }
-    return ContentService.createTextOutput(JSON.stringify({status: "success"})).setMimeType(ContentService.MimeType.JSON);
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({status: "error", message: err.toString()})).setMimeType(ContentService.MimeType.JSON);
-  }
-}
-</pre>
+            <!-- Login / Logout -->
+            <div class="grid grid-cols-1 gap-2">
+                <button x-show="!userEmail" @click="supabaseLogin()" class="btn-cute py-2.5 bg-emerald-400 hover:bg-emerald-300 border-2 border-slate-800 rounded-xl font-black text-emerald-950 text-sm shadow-xs">
+                    🔑 使用 Google 帳號登入（開始編輯）
+                </button>
+                <div x-show="userEmail" class="flex items-center justify-between bg-emerald-50 p-3 rounded-2xl border-2 border-slate-800">
+                    <span class="font-extrabold text-xs text-emerald-950" x-text="'登入中：' + userEmail"></span>
+                    <button @click="supabaseLogout()" class="text-xs font-bold text-rose-600 hover:underline">登出</button>
                 </div>
             </div>
         </div>
@@ -607,6 +534,33 @@ function doPost(e) {
                     </ul>
                 </div>
             </div>
+
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <h4 class="font-extrabold text-slate-800 text-sm">☁️ 過去每一天的雲端紀錄：</h4>
+                    <button @click="downloadAllLogsCsv()" class="btn-cute bg-slate-200 hover:bg-slate-100 border border-slate-800 px-2 py-1 rounded-lg text-[11px] font-black shadow-xs">
+                        📥 匯出全部紀錄 (CSV)
+                    </button>
+                </div>
+                <div class="space-y-1 max-h-64 overflow-y-auto">
+                    <template x-if="cloudLogs.length === 0">
+                        <div class="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-200 p-3 rounded-xl">還沒有雲端紀錄（登入後資料會自動保存）</div>
+                    </template>
+                    <template x-for="log in cloudLogs" :key="log.log_date">
+                        <details class="bg-white border-2 border-slate-200 rounded-xl p-2 text-xs font-bold text-slate-700">
+                            <summary class="cursor-pointer flex items-center justify-between">
+                                <span x-text="'📅 ' + log.log_date"></span>
+                                <span class="text-[11px] font-mono" x-text="(log.data?.presentCount || 0) + ' 人到校 / 總點數 ' + (log.data?.totalPoints || 0)"></span>
+                            </summary>
+                            <div class="mt-2 border-t pt-2 space-y-1 font-mono">
+                                <template x-for="s in (log.data?.students || [])" :key="log.log_date + s.name">
+                                    <div x-text="s.name + '：' + (s.present ? '到校 ' + (s.presentTime||'') : '缺席') + '｜打掃 ' + (s.cleanDone ? '✓' : '✗') + '｜刷牙 ' + (s.brushDone ? '✓' : '✗') + '｜今日 ' + (s.points || 0) + ' 分｜總計 ' + (s.totalPoints || 0) + ' 分'"></div>
+                                </template>
+                            </div>
+                        </details>
+                    </template>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -623,11 +577,19 @@ function doPost(e) {
                 todayDateKey: '',
                 currentTimeStr: '',
 
-                // Google Script & Drive Connection Status
-                googleScriptUrl: '',
-                googleSheetUrl: '',
-                googleStatus: 'none', // 'none' | 'connected' | 'error' | 'testing'
-                googleStatusMsg: '',
+                // Supabase Connection Status
+                sbClient: null,
+                userEmail: '',
+                myUserId: '',
+                ownerId: null,
+                readOnly: true,      // 未登入或非擁有者 → 觀看模式
+                cloudStatus: 'none', // 'none' | 'connected' | 'error'
+                cloudStatusMsg: '尚未登入',
+                lastUpdated: '',
+                lastCloudStamp: '',
+                cloudLogs: [],
+                sbSaveDebounce: null,
+                sbSaving: false,
 
                 // Reorderable layout mode
                 reorderMode: false,
@@ -636,16 +598,14 @@ function doPost(e) {
                 wbFontSize: '20px',
                 wbColor: '#1e293b',
 
-                // Auto Sync State
-                autoSyncEnabled: true,
-                autoSyncing: false,
+                // Auto Save State
                 autoSyncDebounceTimer: null,
 
                 // Students State (3 students)
                 students: [
-                    { name: '小明', present: true, presentTime: '', cleanDone: false, cleanTime: '', brushDone: false, brushTime: '', points: 0, cloudPoints: 0 },
-                    { name: '小華', present: true, presentTime: '', cleanDone: false, cleanTime: '', brushDone: false, brushTime: '', points: 0, cloudPoints: 0 },
-                    { name: '小美', present: true, presentTime: '', cleanDone: false, cleanTime: '', brushDone: false, brushTime: '', points: 0, cloudPoints: 0 }
+                    { name: '小明', present: true, presentTime: '', cleanDone: false, cleanTime: '', brushDone: false, brushTime: '', points: 0, cloudPoints: 0, totalPoints: 0 },
+                    { name: '小華', present: true, presentTime: '', cleanDone: false, cleanTime: '', brushDone: false, brushTime: '', points: 0, cloudPoints: 0, totalPoints: 0 },
+                    { name: '小美', present: true, presentTime: '', cleanDone: false, cleanTime: '', brushDone: false, brushTime: '', points: 0, cloudPoints: 0, totalPoints: 0 }
                 ],
 
                 // Attendance stats computed property
@@ -666,8 +626,10 @@ function doPost(e) {
                 currentOrderStatus: { id: 'quiet', label: '靜音專注', icon: '🤫', bannerClass: 'bg-indigo-100 text-indigo-900 border-indigo-800', message: '請保持安靜，專心作答與學習！' },
 
                 setOrderStatus(item) {
+                    if (this.guardEdit()) return;
                     this.currentOrderStatus = item;
                     this.playChimeSound();
+                    this.saveLocalState();
                 },
 
                 // Countdown timer state & methods
@@ -755,6 +717,7 @@ function doPost(e) {
 
                 // Attendance & Points Handlers
                 toggleAttendance(idx) {
+                    if (this.guardEdit()) return;
                     this.students[idx].present = !this.students[idx].present;
                     const nowTime = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
                     this.students[idx].presentTime = this.students[idx].present ? nowTime : '';
@@ -762,6 +725,7 @@ function doPost(e) {
                 },
 
                 markAllPresent() {
+                    if (this.guardEdit()) return;
                     const nowTime = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
                     this.students.forEach(s => {
                         s.present = true;
@@ -770,9 +734,20 @@ function doPost(e) {
                     this.saveLocalState();
                 },
 
+                guardEdit() {
+                    if (this.readOnly) {
+                        alert('👁️ 觀看模式：只有老師登入後才能修改紀錄（點右上角按鈕登入）');
+                        return true;
+                    }
+                    return false;
+                },
+
                 adjustPoints(idx, delta) {
+                    if (this.guardEdit()) return;
                     if (!this.students[idx].points) this.students[idx].points = 0;
+                    if (!this.students[idx].totalPoints) this.students[idx].totalPoints = 0;
                     this.students[idx].points += delta;
+                    this.students[idx].totalPoints += delta;
                     if (delta > 0) {
                         this.playHappySound();
                     } else {
@@ -782,11 +757,13 @@ function doPost(e) {
                 },
 
                 resetStudentPoints() {
+                    if (this.guardEdit()) return;
                     this.students.forEach(s => s.points = 0);
                     this.saveLocalState();
                 },
 
                 toggleCheckin(idx, type) {
+                    if (this.guardEdit()) return;
                     const nowTime = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
                     if (type === 'clean') {
                         this.students[idx].cleanDone = !this.students[idx].cleanDone;
@@ -800,6 +777,7 @@ function doPost(e) {
                 },
 
                 resetCheckins() {
+                    if (this.guardEdit()) return;
                     this.students.forEach(s => {
                         s.cleanDone = false;
                         s.cleanTime = '';
@@ -819,6 +797,7 @@ function doPost(e) {
                 },
 
                 insertWbTemplate(type) {
+                    if (this.guardEdit()) return;
                     const wb = document.getElementById('whiteboard');
                     if (!wb) return;
                     if (type === 'hw') {
@@ -830,130 +809,208 @@ function doPost(e) {
                 },
 
                 clearWb() {
+                    if (this.guardEdit()) return;
                     const wb = document.getElementById('whiteboard');
                     if (wb) wb.innerHTML = '';
                     this.saveLocalState();
                 },
 
-                async testGoogleConnection(quiet = false) {
-                    if (!this.googleScriptUrl) {
-                        this.googleStatus = 'none';
-                        this.googleStatusMsg = '尚未設定 Google Apps Script 網址';
-                        return;
-                    }
-                    this.googleStatus = 'testing';
-                    this.googleStatusMsg = '連線測試中...';
-                    try {
-                        const res = await fetch(this.googleScriptUrl);
-                        if (res.ok) {
-                            this.googleStatus = 'connected';
-                            this.googleStatusMsg = '連線成功！雲端試算表已準備就緒';
-                            if (!quiet) alert('🟢 Google 雲端連線測試成功！');
-                        } else {
-                            throw new Error('HTTP ' + res.status);
-                        }
-                    } catch (err) {
-                        this.googleStatus = 'error';
-                        this.googleStatusMsg = '連線失敗，請檢查網址與權限設定';
-                        if (!quiet) alert('🔴 連線失敗！請確定權限設為「所有人 (Anyone)」。');
-                    }
-                },
+                // ═══ Supabase 雲端同步（取代原本的 Google Apps Script）═══
 
                 // Init App Lifecycle
-                initApp() {
+                async initApp() {
                     this.updateClock();
                     setInterval(() => this.updateClock(), 1000);
 
-                    // Load Google Script URL, Sheet URL & Auto Sync preference
-                    this.googleScriptUrl = localStorage.getItem('classroom_google_script_url') || '';
-                    this.googleSheetUrl = localStorage.getItem('classroom_google_sheet_url') || '';
-                    const savedAutoSync = localStorage.getItem('classroom_auto_sync_enabled');
-                    if (savedAutoSync !== null) {
-                        this.autoSyncEnabled = JSON.parse(savedAutoSync);
-                    }
-
-                    // Load persistent points & checkins
+                    // Load persistent points & checkins (離線快取)
                     this.loadSavedData();
 
-                    if (this.googleScriptUrl) {
-                        this.testGoogleConnection(true);
+                    // Supabase 雲端連線
+                    await this.supabaseInit();
+                },
+
+                // ═══ Supabase 雲端自動保存 ═══
+                async supabaseInit() {
+                    try {
+                        if (!window.SB || !window.supabase) {
+                            this.cloudStatus = 'error';
+                            this.cloudStatusMsg = '無法載入 Supabase（檢查網路）';
+                            return;
+                        }
+                        this.sbClient = window.supabase.createClient(window.SB.URL, window.SB.KEY);
+                        const { data: { session } } = await this.sbClient.auth.getSession();
+                        this.handleSession(session);
+                        this.sbClient.auth.onAuthStateChange((_e, s) => this.handleSession(s));
+
+                        // 載入雲端最新資料
+                        await this.refreshFromCloud();
+
+                        // 觀看模式：每 30 秒自動更新
+                        setInterval(() => this.refreshFromCloud(true), 30000);
+                    } catch (e) {
+                        this.cloudStatus = 'error';
+                        this.cloudStatusMsg = '連線失敗：' + e.message;
                     }
                 },
 
-                openGoogleSheet() {
-                    if (this.googleSheetUrl && this.googleSheetUrl.trim() !== '') {
-                        window.open(this.googleSheetUrl.trim(), '_blank');
-                    } else {
-                        // Prompt user to configure link or open default drive
-                        this.showGoogleModal = true;
-                        window.open('https://drive.google.com', '_blank');
+                handleSession(session) {
+                    this.myUserId = (session && session.user) ? session.user.id : '';
+                    this.userEmail = (session && session.user) ? session.user.email : '';
+                    this.updateReadOnly();
+                },
+
+                updateReadOnly() {
+                    const loggedIn = !!this.myUserId;
+                    this.readOnly = this.ownerId ? (this.ownerId !== this.myUserId) : !loggedIn;
+                    if (!this.readOnly) {
+                        this.cloudStatus = 'connected';
+                        this.cloudStatusMsg = '已連線，編輯會自動保存（' + this.userEmail + '）';
                     }
                 },
 
-                saveGoogleScriptUrl() {
-                    localStorage.setItem('classroom_google_script_url', this.googleScriptUrl);
-                    localStorage.setItem('classroom_google_sheet_url', this.googleSheetUrl);
-                    this.testGoogleConnection();
+                supabaseLogin() {
+                    if (!this.sbClient) return;
+                    this.sbClient.auth.signInWithOAuth({
+                        provider: 'google',
+                        options: { redirectTo: window.location.origin + window.location.pathname },
+                    });
+                },
+
+                async supabaseLogout() {
+                    await this.sbClient.auth.signOut();
+                    this.userEmail = '';
+                    this.myUserId = '';
+                    this.updateReadOnly();
                     this.showGoogleModal = false;
                 },
 
-                async fetchPointsFromGoogle() {
-                    if (!this.googleScriptUrl) return;
+                async refreshFromCloud(quiet = false) {
+                    if (!this.sbClient) return;
                     try {
-                        const res = await fetch(this.googleScriptUrl);
-                        if (res.ok) {
-                            const data = await res.json();
-                            this.students.forEach(s => {
-                                if (data[s.name] !== undefined) {
-                                    s.cloudPoints = Number(data[s.name]) || 0;
-                                }
-                            });
+                        // 1. 載入班級狀態（公開可讀）
+                        const { data, error } = await this.sbClient
+                            .from('classroom_state')
+                            .select('*')
+                            .eq('id', 'main')
+                            .maybeSingle();
+                        if (error) throw error;
+                        if (data) {
+                            this.ownerId = data.owner_id;
+                            this.updateReadOnly();
+                            // 只有觀看者（或收到新的雲端版本）才覆蓋畫面，避免蓋掉自己正在編輯的內容
+                            if (this.readOnly || data.updated_at !== this.lastCloudStamp) {
+                                this.applyCloudState(data);
+                            }
+                            this.lastCloudStamp = data.updated_at;
+                            this.lastUpdated = new Date(data.updated_at).toLocaleString('zh-TW');
+                        } else if (this.myUserId && !this.ownerId) {
+                            // 首次設定：建立班級資料（自己是擁有者）
+                            this.ownerId = this.myUserId;
+                            this.updateReadOnly();
+                        }
+                        // 2. 載入歷史紀錄
+                        const { data: logs } = await this.sbClient
+                            .from('classroom_daily_logs')
+                            .select('*')
+                            .order('log_date', { ascending: false })
+                            .limit(120);
+                        this.cloudLogs = logs || [];
+                        if (!quiet) {
+                            this.cloudStatus = 'connected';
+                            this.cloudStatusMsg = this.readOnly
+                                ? '已連線（觀看模式）'
+                                : '已連線，編輯會自動保存（' + this.userEmail + '）';
                         }
                     } catch (e) {
-                        console.error('Fetch Google points error:', e);
+                        if (!quiet) {
+                            this.cloudStatus = 'error';
+                            this.cloudStatusMsg = '連線失敗：' + e.message;
+                        }
                     }
                 },
 
-                async syncTodayToGoogleDrive() {
-                    if (!this.googleScriptUrl) {
-                        alert('請先點擊頂部「連線 Google 雲端」按鈕輸入網址！');
-                        this.showGoogleModal = true;
-                        return;
+                applyCloudState(row) {
+                    const d = row.data || {};
+                    if (d.students && Array.isArray(d.students) && d.students.length) {
+                        this.students = d.students.map(s => ({
+                            presentTime: '', cleanTime: '', brushTime: '',
+                            present: false, cleanDone: false, brushDone: false,
+                            points: 0, cloudPoints: 0, totalPoints: 0,
+                            ...s,
+                        }));
+                        this.students.forEach(s => { s.cloudPoints = Math.max(0, (s.totalPoints || 0) - (s.points || 0)); });
                     }
-                    const pointsData = {};
-                    this.students.forEach(s => {
-                        pointsData[s.name] = s.points || 0;
-                    });
+                    if (d.wbContent !== undefined) {
+                        const wb = document.getElementById('whiteboard');
+                        if (wb) wb.innerHTML = d.wbContent;
+                    }
+                    if (d.orderStatus) {
+                        const found = this.orderBadges.find(b => b.id === d.orderStatus.id);
+                        if (found) this.currentOrderStatus = found;
+                    }
+                    if (d.logDate && d.logDate !== this.todayDateKey) {
+                        // 雲端記錄的是舊的一天 → 今天尚未開始
+                        this.students.forEach(s => { s.points = 0; s.cloudPoints = s.totalPoints || 0; });
+                    }
+                    localStorage.setItem('classroom_app_state', JSON.stringify({ students: this.students, wbContent: d.wbContent || '' }));
+                },
+
+                scheduleCloudSave() {
+                    clearTimeout(this.sbSaveDebounce);
+                    this.sbSaveDebounce = setTimeout(() => this.pushCloudSave(), 1500);
+                },
+
+                buildDailyLog() {
+                    return {
+                        logDate: this.todayDateKey,
+                        presentCount: this.attendanceStats.present,
+                        absentCount: this.attendanceStats.absent,
+                        totalPoints: this.students.reduce((a, s) => a + (s.totalPoints || 0), 0),
+                        students: this.students.map(s => ({
+                            name: s.name, present: s.present, presentTime: s.presentTime,
+                            cleanDone: s.cleanDone, cleanTime: s.cleanTime,
+                            brushDone: s.brushDone, brushTime: s.brushTime,
+                            points: s.points || 0, totalPoints: s.totalPoints || 0,
+                        })),
+                        wbSummary: (document.getElementById('whiteboard')?.innerText || '').replace(/\s+/g, ' ').slice(0, 300),
+                    };
+                },
+
+                async pushCloudSave() {
+                    if (!this.sbClient || this.readOnly || this.sbSaving) return;
+                    this.sbSaving = true;
                     try {
-                        const res = await fetch(this.googleScriptUrl, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'text/plain' },
-                            body: JSON.stringify({
-                                date: this.todayDateKey,
-                                presentCount: this.attendanceStats.present,
-                                absentCount: this.attendanceStats.absent,
-                                pointsData: pointsData
-                            })
-                        });
-                        if (res.ok) {
-                            alert('🎉 資料已成功同步上傳至 Google 雲端！');
-                            await this.fetchPointsFromGoogle();
-                        }
+                        const payload = {
+                            id: 'main',
+                            owner_id: this.ownerId,
+                            data: {
+                                students: this.students,
+                                wbContent: document.getElementById('whiteboard')?.innerHTML || '',
+                                orderStatus: this.currentOrderStatus,
+                                logDate: this.todayDateKey,
+                            },
+                            updated_at: new Date().toISOString(),
+                        };
+                        const { error } = await this.sbClient.from('classroom_state').upsert(payload);
+                        if (error) throw error;
+                        // 每日紀錄
+                        const log = this.buildDailyLog();
+                        await this.sbClient
+                            .from('classroom_daily_logs')
+                            .upsert({ owner_id: this.ownerId, log_date: this.todayDateKey, data: log }, { onConflict: 'owner_id,log_date' });
+                        this.lastCloudStamp = payload.updated_at;
+                        this.lastUpdated = new Date().toLocaleString('zh-TW');
+                        this.cloudStatus = 'connected';
+                        this.cloudStatusMsg = '已連線，剛剛自動保存 ✓（' + new Date().toLocaleTimeString('zh-TW') + '）';
                     } catch (e) {
-                        alert('⚠️ 連線至 Google 試算表失敗，請檢查網址設定');
+                        this.cloudStatus = 'error';
+                        this.cloudStatusMsg = '保存失敗：' + e.message;
+                    } finally {
+                        this.sbSaving = false;
                     }
                 },
 
-                copyAppsScriptCode() {
-                    const text = this.$refs.scriptSnippet.innerText;
-                    const el = document.createElement('textarea');
-                    el.value = text;
-                    document.body.appendChild(el);
-                    el.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(el);
-                    alert('📋 已成功複製 Apps Script 腳本！');
-                },
+                // ═══ 保存與載入 ═══
 
                 // Export CSV
                 downloadCsvReport() {
@@ -971,15 +1028,31 @@ function doPost(e) {
 
                 openHistoryModal() {
                     this.showHistoryModal = true;
+                    this.refreshFromCloud(true);
                 },
 
-                // Persistence Storage
-                saveLocalState() {
+                // ═══ 保存與載入 ═══
+                saveLocalState(force = false) {
+                    // 跨日時自動重置今日點數（累計點數保留）
                     const state = {
                         students: this.students,
-                        wbContent: document.getElementById('whiteboard')?.innerHTML || ''
+                        wbContent: document.getElementById('whiteboard')?.innerHTML || '',
+                        logDate: this.todayDateKey,
                     };
+                    const saved = localStorage.getItem('classroom_app_state');
+                    if (saved) {
+                        try {
+                            const prev = JSON.parse(saved);
+                            if (prev.logDate && prev.logDate !== this.todayDateKey) {
+                                this.students.forEach(s => { s.points = 0; s.cloudPoints = s.totalPoints || 0; });
+                                state.students = this.students;
+                            }
+                        } catch (e) {}
+                    }
                     localStorage.setItem('classroom_app_state', JSON.stringify(state));
+                    // 雲端自動保存（編輯者才會推送；force = 按下「立即同步」）
+                    if (force) this.pushCloudSave();
+                    else this.scheduleCloudSave();
                 },
 
                 loadSavedData() {
@@ -987,12 +1060,34 @@ function doPost(e) {
                     if (saved) {
                         try {
                             const data = JSON.parse(saved);
-                            if (data.students) this.students = data.students;
+                            if (data.students) {
+                                this.students = data.students.map(s => ({ totalPoints: 0, ...s }));
+                                // 新的一天：重置今日點數
+                                if (data.logDate && data.logDate !== this.todayDateKey) {
+                                    this.students.forEach(s => { s.points = 0; s.cloudPoints = s.totalPoints || 0; });
+                                } else {
+                                    this.students.forEach(s => { s.cloudPoints = Math.max(0, (s.totalPoints || 0) - (s.points || 0)); });
+                                }
+                            }
                             if (data.wbContent) {
                                 document.getElementById('whiteboard').innerHTML = data.wbContent;
                             }
                         } catch (e) {}
                     }
+                },
+
+                downloadAllLogsCsv() {
+                    let csv = '\uFEFF日期,學生姓名,出席狀態,到校時間,打掃,打掃時間,刷牙,刷牙時間,今日點數,總累計點數\n';
+                    this.cloudLogs.forEach(log => {
+                        (log.data?.students || []).forEach(s => {
+                            csv += `"${log.log_date}","${s.name}","${s.present ? '到校' : '缺席'}","${s.presentTime || ''}","${s.cleanDone ? '是' : '否'}","${s.cleanTime || ''}","${s.brushDone ? '是' : '否'}","${s.brushTime || ''}",${s.points || 0},${s.totalPoints || 0}\n`;
+                        });
+                    });
+                    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = `班級全部紀錄_${this.todayDateKey}.csv`;
+                    link.click();
                 },
 
                 // Web Audio API Synthesizer (Happy Chord & Sad Scale)
