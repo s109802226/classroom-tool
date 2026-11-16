@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>英語發音練習繳交系統</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="config.js"></script>
+</head>
+<body>
+  <!-- 未設定 config.js 的提示 -->
+  <div id="config-warning" class="banner hidden">
+    ⚠️ 請先編輯 <code>config.js</code>，填入你的 Supabase URL 和 anon key（步驟請看 SETUP教學.md）
+  </div>
+
+  <!-- 登入畫面 -->
+  <div id="view-auth" class="view">
+    <div class="auth-card">
+      <h1>🎙️ 英語發音練習</h1>
+      <p class="subtitle">錄音繳交・發音評分回饋系統</p>
+      <ul class="features">
+        <li>📌 老師指定朗讀文本</li>
+        <li>🎤 網頁直接錄音或上傳檔案</li>
+        <li>🤖 AI 自動比對發音、逐字標示</li>
+        <li>📝 老師補充回饋、記錄保存</li>
+      </ul>
+      <button id="btn-google-login" class="btn btn-primary btn-big">使用 Google 帳號登入</button>
+      <p id="auth-error" class="error-text"></p>
+    </div>
+  </div>
+
+  <!-- 主畫面 -->
+  <div id="view-app" class="view hidden">
+    <header class="topbar">
+      <div class="topbar-left">
+        <strong>🎙️ 英語發音練習</strong>
+      </div>
+      <div class="topbar-right">
+        <span id="user-name"></span>
+        <button id="btn-signout" class="btn btn-ghost btn-sm">登出</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="assignments">📋 作業</button>
+      <button class="tab" data-tab="history">📚 我的紀錄</button>
+      <button class="tab" data-tab="profile">👤 我的資料</button>
+      <button class="tab teacher-only hidden" data-tab="teacher">🧑‍🏫 老師專區</button>
+    </nav>
+
+    <!-- 作業列表 -->
+    <section id="tab-assignments" class="tab-panel">
+      <div id="assignment-list"></div>
+
+      <!-- 單一作業繳交畫面 -->
+      <div id="assignment-detail" class="hidden">
+        <button id="btn-back-list" class="btn btn-ghost">← 返回作業列表</button>
+        <h2 id="detail-title"></h2>
+        <div class="ref-text-card">
+          <h3>📄 請朗讀以下文本</h3>
+          <p id="detail-text"></p>
+        </div>
+
+        <div class="record-card">
+          <h3>🎤 錄音</h3>
+          <div class="record-controls">
+            <button id="btn-record" class="btn btn-record">🔴 開始錄音</button>
+            <span id="record-timer" class="timer">00:00</span>
+          </div>
+          <div class="divider">或</div>
+          <label class="btn btn-secondary" for="file-input">📁 上傳錄音檔</label>
+          <input type="file" id="file-input" accept="audio/*" class="hidden" />
+          <audio id="preview-audio" controls class="hidden"></audio>
+          <div id="file-name" class="file-name"></div>
+          <button id="btn-submit" class="btn btn-primary btn-big" disabled>✅ 繳交並取得發音評分</button>
+          <p id="submit-status"></p>
+        </div>
+
+        <div id="result-card" class="hidden">
+          <h3>📊 發音評分結果</h3>
+          <div class="result-summary">
+            <div class="score-circle"><span id="score-value">--</span><small>/100</small></div>
+            <div class="result-stats" id="result-stats"></div>
+          </div>
+          <h4>逐字比對（<span class="chip-ok">正確</span> / <span class="chip-wrong">待加強</span> / <span class="chip-missed">漏讀</span>，滑鼠移到紅字可看到 AI 聽到的內容）</h4>
+          <div id="result-words" class="word-chips"></div>
+          <div id="result-transcript-block" class="hidden">
+            <h4>🤖 AI 聽到的完整內容</h4>
+            <p id="result-transcript"></p>
+          </div>
+          <div id="teacher-comment-view" class="hidden">
+            <h4>📝 老師回饋</h4>
+            <p id="teacher-comment-text"></p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 我的紀錄 -->
+    <section id="tab-history" class="tab-panel hidden">
+      <h2>📚 我的繳交紀錄</h2>
+      <div id="history-list"></div>
+    </section>
+
+    <!-- 我的資料 -->
+    <section id="tab-profile" class="tab-panel hidden">
+      <h2>👤 我的資料</h2>
+      <div class="form-card">
+        <label>顯示名稱</label>
+        <input id="profile-name" type="text" />
+        <label>班級</label>
+        <input id="profile-class" type="text" placeholder="例如：601" />
+        <label>座號/學號</label>
+        <input id="profile-number" type="text" placeholder="例如：12" />
+        <button id="btn-save-profile" class="btn btn-primary">儲存</button>
+        <p id="profile-status"></p>
+      </div>
+    </section>
+
+    <!-- 老師專區 -->
+    <section id="tab-teacher" class="tab-panel hidden">
+      <h2>🧑‍🏫 老師專區</h2>
+
+      <div class="form-card">
+        <h3>➕ 新增作業</h3>
+        <label>作業標題</label>
+        <input id="ta-title" type="text" placeholder="例如：Unit 3 課文朗讀" />
+        <label>朗讀文本（英文）</label>
+        <textarea id="ta-text" rows="5" placeholder="貼上學生要朗讀的英文文本"></textarea>
+        <button id="btn-create-assignment" class="btn btn-primary">建立作業</button>
+        <p id="ta-status"></p>
+      </div>
+
+      <div class="form-card">
+        <h3>📥 繳交情形</h3>
+        <label>選擇作業</label>
+        <select id="teacher-assignment-select"><option value="">載入中…</option></select>
+        <div class="table-actions">
+          <button id="btn-export-csv" class="btn btn-secondary btn-sm">⬇️ 匯出 CSV</button>
+        </div>
+        <div id="teacher-submissions"></div>
+      </div>
+    </section>
+  </div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
