@@ -233,3 +233,30 @@ body {
   .tab-panel { padding: 14px; }
   .result-summary { flex-direction: column; align-items: flex-start; }
 }
+
+/* ── 登入畫面：學生 / 老師身分卡片 ── */
+.auth-role-card {
+  background: #f8fafc;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+.auth-role-card h3 { margin: 0 0 4px; font-size: 1rem; }
+.auth-role-card input {
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 1rem;
+}
+.auth-role-card input:focus { outline: 2px solid #3b82f6; }
+.auth-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.auth-role-teacher { background: #fffbeb; }

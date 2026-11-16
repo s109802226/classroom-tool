@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════
 // 英語發音練習繳交系統 — 主程式
+// 學生：免登入，輸入姓名即可繳交；老師：Google 登入
 // ═══════════════════════════════════════════════════════════
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
 
@@ -14,8 +15,10 @@ const sb = configured
   : null;
 
 // ── 狀態 ──
-let session = null;
-let profile = null;
+let mode = null; // 'student' | 'teacher'
+let session = null; // 老師的登入 session
+let profile = null; // 老師的 profile
+let studentInfo = null; // { name, className, number }
 let assignments = [];
 let currentAssignment = null;
 let currentRecording = null; // { blob, ext, source }
@@ -39,33 +42,49 @@ async function init() {
   if (!configured) return;
   bindEvents();
 
+  // 有登入 session → 老師模式
   const { data: { session: s } } = await sb.auth.getSession();
   if (s) {
     session = s;
+    mode = "teacher";
     await enterApp();
+  } else {
+    // 記住上次輸入的學生資料
+    try {
+      const saved = JSON.parse(localStorage.getItem("pron_student_info") || "null");
+      if (saved?.name) {
+        $("st-name").value = saved.name;
+        $("st-class").value = saved.className || "";
+        $("st-number").value = saved.number || "";
+      }
+    } catch (e) {}
   }
   sb.auth.onAuthStateChange(async (_event, s) => {
     session = s;
-    if (s) await enterApp();
-    else showAuth();
+    if (s) {
+      mode = "teacher";
+      await enterApp();
+    } else if (mode === "teacher") {
+      showAuth();
+    }
   });
 }
 
 function showAuth() {
+  mode = null;
+  profile = null;
   show($("view-auth"));
   hide($("view-app"));
-  profile = null;
 }
 
 async function enterApp() {
   hide($("view-auth"));
   show($("view-app"));
-  await loadProfile();
+  if (mode === "teacher") await loadProfile();
   renderTopbar();
   switchTab("assignments");
   await loadAssignments();
-  if (profile.role === "teacher") {
-    show(document.querySelector(".tab.teacher-only"));
+  if (mode === "teacher") {
     await loadTeacherAssignments();
   }
 }
@@ -90,9 +109,16 @@ async function loadProfile() {
 }
 
 function renderTopbar() {
-  $("user-name").textContent = profile.full_name || session.user.email;
+  if (mode === "teacher") {
+    $("user-name").textContent = "🧑‍🏫 " + (profile?.full_name || session?.user?.email || "老師");
+    $("btn-signout").textContent = "登出";
+  } else {
+    const c = studentInfo?.className ? `（${studentInfo.className}${studentInfo.number ? " 號 " + studentInfo.number : ""}）` : "";
+    $("user-name").textContent = "🎒 " + (studentInfo?.name || "") + c;
+    $("btn-signout").textContent = "切換身分";
+  }
   document.querySelectorAll(".tab.teacher-only").forEach((t) =>
-    profile.role === "teacher" ? show(t) : hide(t)
+    mode === "teacher" ? show(t) : hide(t)
   );
 }
 
@@ -100,6 +126,11 @@ function renderTopbar() {
 // 事件綁定
 // ═══════════════════════════════════════════════════════════
 function bindEvents() {
+  // 學生：輸入姓名進入
+  $("btn-student-enter").addEventListener("click", enterAsStudent);
+  $("st-name").addEventListener("keydown", (e) => { if (e.key === "Enter") enterAsStudent(); });
+
+  // 老師：Google 登入
   $("btn-google-login").addEventListener("click", async () => {
     const { error } = await sb.auth.signInWithOAuth({
       provider: "google",
@@ -107,7 +138,16 @@ function bindEvents() {
     });
     if (error) $("auth-error").textContent = "登入失敗：" + error.message;
   });
-  $("btn-signout").addEventListener("click", () => sb.auth.signOut());
+
+  // 登出 / 切換身分
+  $("btn-signout").addEventListener("click", async () => {
+    if (mode === "teacher") {
+      await sb.auth.signOut();
+      mode = null;
+    }
+    showAuth();
+  });
+
   $("btn-back-list").addEventListener("click", () => {
     hide($("assignment-detail"));
     show($("assignment-list"));
@@ -127,11 +167,27 @@ function bindEvents() {
   });
   $("btn-submit").addEventListener("click", submitRecording);
 
-  // 資料
-  $("btn-save-profile").addEventListener("click", saveProfile);
+  // 老師專區
   $("btn-create-assignment").addEventListener("click", createAssignment);
   $("teacher-assignment-select").addEventListener("change", () => renderTeacherSubmissions());
   $("btn-export-csv").addEventListener("click", exportCSV);
+}
+
+function enterAsStudent() {
+  const name = $("st-name").value.trim();
+  if (!name) {
+    $("auth-error").textContent = "請先輸入你的名字再進入喔！";
+    return;
+  }
+  $("auth-error").textContent = "";
+  studentInfo = {
+    name,
+    className: $("st-class").value.trim(),
+    number: $("st-number").value.trim(),
+  };
+  localStorage.setItem("pron_student_info", JSON.stringify(studentInfo));
+  mode = "student";
+  enterApp();
 }
 
 function switchTab(name) {
@@ -141,16 +197,11 @@ function switchTab(name) {
   document.querySelectorAll(".tab-panel").forEach((p) => hide(p));
   show($(`tab-${name}`));
   if (name === "history") loadHistory();
-  if (name === "profile" && profile) {
-    $("profile-name").value = profile.full_name || "";
-    $("profile-class").value = profile.class_name || "";
-    $("profile-number").value = profile.student_number || "";
-  }
   if (name === "teacher") renderTeacherSubmissions();
 }
 
 // ═══════════════════════════════════════════════════════════
-// 作業列表（學生）
+// 作業列表
 // ═══════════════════════════════════════════════════════════
 async function loadAssignments() {
   const { data, error } = await sb
@@ -261,26 +312,28 @@ async function submitRecording() {
   const statusEl = $("submit-status");
   statusEl.className = "";
   statusEl.textContent = "⏳ 上傳音檔中…";
-  let sub = null;
 
   try {
     const { blob, ext } = currentRecording;
     const dateStr = new Date().toLocaleDateString("sv", { timeZone: "Asia/Taipei" });
-    const path = `${session.user.id}/${currentAssignment.id}/${Date.now()}.${ext}`;
+    const who = mode === "student" ? studentInfo.name : (profile?.full_name || "teacher");
+    const path = `anon/${currentAssignment.id}/${dateStr}/${encodeURIComponent(who)}-${Date.now()}.${ext}`;
 
-    // 1. 上傳音檔
+    // 1. 上傳音檔（匿名允許上傳到 recordings/anon/ 底下）
     const { error: upErr } = await sb.storage
       .from("recordings")
       .upload(path, blob, { contentType: blob.type || "audio/webm", upsert: false });
     if (upErr) throw upErr;
 
-    // 2. 建立繳交紀錄
+    // 2. 建立繳交紀錄（免登入：記學生姓名）
     statusEl.textContent = "⏳ AI 發音分析中…（約需 10–30 秒）";
     const ins = await sb
       .from("submissions")
       .insert({
         assignment_id: currentAssignment.id,
-        student_id: session.user.id,
+        student_name: who,
+        class_name: mode === "student" ? studentInfo.className : null,
+        student_number: mode === "student" ? studentInfo.number : null,
         audio_path: path,
         submission_date: dateStr,
         status: "grading",
@@ -288,17 +341,18 @@ async function submitRecording() {
       .select()
       .single();
     if (ins.error) throw ins.error;
-    sub = ins.data;
+    const sub = ins.data;
 
-    // 3. 呼叫 Edge Function 分析
+    // 3. 呼叫 Edge Function 分析（分數由伺服器寫回資料庫）
     const fd = new FormData();
     fd.append("audio", blob, `audio.${ext}`);
     fd.append("text", currentAssignment.reference_text);
+    fd.append("submission_id", sub.id);
     const res = await fetch(`${cfg.SUPABASE_URL}/functions/v1/feedback`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${session.access_token}`,
         apikey: cfg.SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${cfg.SUPABASE_ANON_KEY}`,
       },
       body: fd,
     });
@@ -306,40 +360,21 @@ async function submitRecording() {
 
     if (!res.ok) throw new Error(result.error || "分析失敗");
 
-    // 4. 回寫分析結果
-    await sb
-      .from("submissions")
-      .update({
-        status: "graded",
-        transcript: result.transcript,
-        accuracy_score: result.score,
-        words_detail: { words: result.words, extras: result.extras },
-        fluency_wps: result.fluency_wps,
-      })
-      .eq("id", sub.id);
-
     statusEl.textContent = "✅ 繳交成功！";
     renderResult(result);
   } catch (e) {
     console.error(e);
     statusEl.className = "error";
-    statusEl.textContent = "❌ " + (e.message || e);
-    // 分析失敗也要留下紀錄，讓老師可以聽音檔並手動回饋
-    if (sub?.id) {
-      await sb
-        .from("submissions")
-        .update({ status: "error", error_message: String(e.message || e).slice(0, 500) })
-        .eq("id", sub.id);
-    }
+    statusEl.textContent = "❌ " + (e.message || e) + "（老師仍可在「老師專區」聽你的音檔）";
   }
 }
 
 function renderResult(result) {
   $("score-value").textContent = result.score ?? "--";
   const words = result.words || [];
-  const ok = words.filter((w) => w.status === "ok").length;
-  const wrong = words.filter((w) => w.status === "wrong").length;
-  const missed = words.filter((w) => w.status === "missed").length;
+  const ok = result.okCount ?? words.filter((w) => w.status === "ok").length;
+  const wrong = result.wrongCount ?? words.filter((w) => w.status === "wrong").length;
+  const missed = result.missedCount ?? words.filter((w) => w.status === "missed").length;
   $("result-stats").innerHTML = `
     ✅ 正確 ${ok} 字<br>
     ⚠️ 待加強 ${wrong} 字<br>
@@ -379,12 +414,23 @@ async function signedUrl(path) {
 async function loadHistory() {
   const listEl = $("history-list");
   listEl.innerHTML = "<p>載入中…</p>";
-  const { data, error } = await sb
+
+  let query = sb
     .from("submissions")
     .select("*, assignments(title)")
-    .eq("student_id", session.user.id)
     .order("created_at", { ascending: false })
     .limit(100);
+
+  if (mode === "student") {
+    // 學生：用姓名（＋班級）查自己的紀錄
+    query = query.eq("student_name", studentInfo.name);
+    if (studentInfo.className) query = query.eq("class_name", studentInfo.className);
+  } else {
+    // 老師：看全部最近的繳交
+    query = query.limit(50);
+  }
+
+  const { data, error } = await query;
   if (error) { listEl.innerHTML = `<p class="error-text">載入失敗：${esc(error.message)}</p>`; return; }
   if (!data.length) { listEl.innerHTML = `<div class="card">還沒有繳交紀錄 📭</div>`; return; }
 
@@ -392,7 +438,8 @@ async function loadHistory() {
   for (const s of data) {
     const div = document.createElement("div");
     div.className = "submission-item";
-    const url = await signedUrl(s.audio_path);
+    // 老師可以聽音檔；學生（匿名）不開放
+    const url = mode === "teacher" ? await signedUrl(s.audio_path) : null;
     const wd = s.words_detail || {};
     const wordsHtml = (wd.words || [])
       .map((w) => {
@@ -402,6 +449,7 @@ async function loadHistory() {
       })
       .join("");
     div.innerHTML = `
+      ${mode === "teacher" ? `<strong>${esc(s.student_name || "未命名")}</strong>` : ""}
       <strong>${esc(s.assignments?.title || "作業")}</strong>
       <span class="score-badge ${scoreBadgeClass(s.accuracy_score)}">${s.accuracy_score != null ? s.accuracy_score + " 分" : s.status === "error" ? "分析失敗" : "分析中"}</span>
       <div class="meta">📅 ${esc(s.submission_date)}　🕒 ${new Date(s.created_at).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" })}</div>
@@ -409,27 +457,10 @@ async function loadHistory() {
       ${wordsHtml ? `<div class="word-chips">${wordsHtml}</div>` : ""}
       ${s.status === "error" ? `<p class="error-text">分析失敗：${esc(s.error_message || "")}</p>` : ""}
       ${s.teacher_comment ? `<div class="teacher-comment-block">📝 老師回饋：${esc(s.teacher_comment)}</div>` : ""}
+      ${s.teacher_score != null ? `<span class="score-badge score-high">老師評分 ${s.teacher_score}</span>` : ""}
     `;
     listEl.appendChild(div);
   }
-}
-
-// ═══════════════════════════════════════════════════════════
-// 我的資料
-// ═══════════════════════════════════════════════════════════
-async function saveProfile() {
-  const { error } = await sb
-    .from("profiles")
-    .update({
-      full_name: $("profile-name").value.trim(),
-      class_name: $("profile-class").value.trim(),
-      student_number: $("profile-number").value.trim(),
-    })
-    .eq("id", session.user.id);
-  const el = $("profile-status");
-  if (error) { el.textContent = "❌ " + error.message; el.className = "error-text"; }
-  else { el.textContent = "✅ 已儲存"; el.className = ""; renderTopbar(); }
-  setTimeout(() => (el.textContent = ""), 3000);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -475,7 +506,7 @@ async function renderTeacherSubmissions() {
 
   const { data, error } = await sb
     .from("submissions")
-    .select("*, assignments(title), profiles(full_name, email, class_name, student_number)")
+    .select("*, assignments(title)")
     .eq("assignment_id", aid)
     .order("created_at", { ascending: false })
     .limit(300);
@@ -483,20 +514,21 @@ async function renderTeacherSubmissions() {
   teacherSubmissionsCache = data || [];
   if (!teacherSubmissionsCache.length) { box.innerHTML = `<div class="card">這個作業還沒有人繳交 📭</div>`; return; }
 
-  // 依學生分組
+  // 依學生分組（免登入模式：用姓名＋班級分組）
   const byStudent = {};
   for (const s of teacherSubmissionsCache) {
-    const key = s.student_id;
-    (byStudent[key] ||= { p: s.profiles, subs: [] }).subs.push(s);
+    const key = (s.student_name || "未命名") + "｜" + (s.class_name || "");
+    (byStudent[key] ||= { label: key, subs: [] }).subs.push(s);
   }
 
   box.innerHTML = "";
-  for (const [sid, g] of Object.entries(byStudent)) {
+  for (const [key, g] of Object.entries(byStudent)) {
     const stu = document.createElement("div");
     stu.className = "submission-item";
+    const first = g.subs[0];
     stu.innerHTML = `
-      <span class="stu-name">${esc(g.p?.full_name || "未命名")}</span>
-      <span class="meta">${esc(g.p?.class_name || "")} ${esc(g.p?.student_number || "")}｜${esc(g.p?.email || "")}</span>
+      <span class="stu-name">${esc(g.label)}</span>
+      <span class="meta">${esc(first.student_number ? "座號 " + first.student_number : "")}</span>
       <div class="meta">共 ${g.subs.length} 次繳交</div>
     `;
     for (const s of g.subs) {
@@ -548,11 +580,11 @@ async function renderTeacherSubmissions() {
 
 function exportCSV() {
   if (!teacherSubmissionsCache.length) { alert("請先選擇作業"); return; }
-  const rows = [["姓名", "班級", "座號", "Email", "作業", "繳交日期", "時間", "自動分數", "老師評分", "AI聽寫", "老師回饋"]];
+  const rows = [["姓名", "班級", "座號", "作業", "繳交日期", "時間", "自動分數", "老師評分", "AI聽寫", "老師回饋"]];
   for (const s of teacherSubmissionsCache) {
     rows.push([
-      s.profiles?.full_name || "", s.profiles?.class_name || "", s.profiles?.student_number || "",
-      s.profiles?.email || "", s.assignments?.title || "", s.submission_date || "",
+      s.student_name || "", s.class_name || "", s.student_number || "",
+      s.assignments?.title || "", s.submission_date || "",
       new Date(s.created_at).toLocaleString("zh-TW"),
       s.accuracy_score ?? "", s.teacher_score ?? "",
       s.transcript || "", (s.teacher_comment || "").replace(/\n/g, " "),

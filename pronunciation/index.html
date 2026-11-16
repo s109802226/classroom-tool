@@ -24,7 +24,24 @@
         <li>🤖 AI 自動比對發音、逐字標示</li>
         <li>📝 老師補充回饋、記錄保存</li>
       </ul>
-      <button id="btn-google-login" class="btn btn-primary btn-big">使用 Google 帳號登入</button>
+
+      <!-- 學生：免登入，輸入姓名 -->
+      <div class="auth-role-card">
+        <h3>🎒 我是學生</h3>
+        <input id="st-name" type="text" placeholder="我的名字（必填）" autocomplete="name" />
+        <div class="auth-row">
+          <input id="st-class" type="text" placeholder="班級，例如 601" />
+          <input id="st-number" type="text" placeholder="座號，例如 12" />
+        </div>
+        <button id="btn-student-enter" class="btn btn-primary btn-big">進入練習 🎤</button>
+      </div>
+
+      <!-- 老師：Google 登入 -->
+      <div class="auth-role-card auth-role-teacher">
+        <h3>🧑‍🏫 我是老師</h3>
+        <button id="btn-google-login" class="btn btn-secondary btn-big">使用 Google 帳號登入</button>
+      </div>
+
       <p id="auth-error" class="error-text"></p>
     </div>
   </div>
@@ -44,7 +61,7 @@
     <nav class="tabs">
       <button class="tab active" data-tab="assignments">📋 作業</button>
       <button class="tab" data-tab="history">📚 我的紀錄</button>
-      <button class="tab" data-tab="profile">👤 我的資料</button>
+      <button class="tab teacher-only hidden" data-tab="profile">👤 我的資料</button>
       <button class="tab teacher-only hidden" data-tab="teacher">🧑‍🏫 老師專區</button>
     </nav>
 
