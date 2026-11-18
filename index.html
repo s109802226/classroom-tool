@@ -115,6 +115,13 @@
                       x-text="cloudStatus === 'connected' ? '🟢 已連線' : (cloudStatus === 'error' ? '🔴 離線' : '🟡 未登入')"></span>
             </button>
 
+            <!-- PRONUNCIATION SYSTEM LINK -->
+            <a href="https://s109802226.github.io/classroom-tool/pronunciation/" target="_blank" rel="noopener"
+               class="btn-cute bg-violet-400 hover:bg-violet-300 border-3 border-slate-800 text-slate-900 font-extrabold px-3 py-2 rounded-2xl text-xs md:text-sm shadow-cute-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-microphone-lines text-base text-violet-950"></i>
+                <span>🎙️ 英語發音練習繳交</span>
+            </a>
+
             <!-- HISTORY LOG & EXPORT BUTTON -->
             <button @click="openHistoryModal()" class="btn-cute bg-sky-300 hover:bg-sky-200 border-3 border-slate-800 text-slate-900 font-extrabold px-3 py-2 rounded-2xl text-xs md:text-sm shadow-cute-sm flex items-center gap-1.5">
                 <i class="fa-solid fa-clock-rotate-left text-base text-sky-950"></i>
