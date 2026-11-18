@@ -142,6 +142,46 @@
             </div>
         </div>
 
+        <!-- QUICK LINKS SECTION（老師可在網站上直接新增/刪除，自動同步雲端） -->
+        <section class="bg-white rounded-3xl p-4 md:p-5 shadow-cute border-4 border-slate-800">
+            <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+                <h2 class="text-lg font-black text-slate-800 flex items-center gap-2">
+                    <span>🔗</span> 常用連結
+                </h2>
+                <button x-show="!readOnly" x-cloak @click="showLinkForm = !showLinkForm"
+                        class="btn-cute bg-violet-300 hover:bg-violet-200 border-2 border-slate-800 rounded-xl px-3 py-1.5 text-xs font-black text-slate-900 flex items-center gap-1">
+                    <i class="fa-solid fa-plus text-[10px]"></i> 新增連結
+                </button>
+            </div>
+
+            <div class="flex flex-wrap gap-2 md:gap-3">
+                <template x-for="(link, i) in links" :key="i + link.url">
+                    <div class="relative group">
+                        <a :href="link.url" target="_blank" rel="noopener"
+                           class="btn-cute bg-violet-100 hover:bg-violet-200 border-3 border-slate-800 rounded-2xl px-4 py-2 text-xs md:text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                            <span x-text="link.label"></span>
+                            <i class="fa-solid fa-arrow-up-right-from-square text-[10px] text-slate-500"></i>
+                        </a>
+                        <button x-show="!readOnly" x-cloak @click="removeLink(i)" title="刪除此連結"
+                                class="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 hover:bg-rose-400 text-white rounded-full text-[11px] font-black border-2 border-slate-800 flex items-center justify-center">✕</button>
+                    </div>
+                </template>
+                <div x-show="links.length === 0" class="text-xs font-bold text-slate-400 self-center">
+                    還沒有連結（老師登入後可新增）
+                </div>
+            </div>
+
+            <!-- 新增連結表單 -->
+            <div x-show="showLinkForm" x-cloak class="mt-3 bg-slate-50 border-2 border-slate-800 rounded-2xl p-3 grid grid-cols-1 md:grid-cols-[180px_1fr_auto_auto] gap-2 items-center">
+                <input x-model="newLinkLabel" placeholder="名稱，例如：英語發音練習"
+                       class="border-2 border-slate-800 rounded-xl p-2 text-xs font-bold focus:ring-2 focus:ring-violet-400 focus:outline-none">
+                <input x-model="newLinkUrl" placeholder="網址，例如 https://example.com"
+                       class="border-2 border-slate-800 rounded-xl p-2 text-xs font-mono focus:ring-2 focus:ring-violet-400 focus:outline-none">
+                <button @click="addLink()" class="btn-cute bg-emerald-400 hover:bg-emerald-300 border-2 border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-slate-900 whitespace-nowrap">✅ 加入</button>
+                <button @click="showLinkForm = false" class="text-xs font-bold text-slate-500 hover:text-slate-800 px-2">取消</button>
+            </div>
+        </section>
+
         <!-- 1. FIRST SECTION: ATTENDANCE & POINT ACCUMULATION & CHECKIN -->
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-5">
 
@@ -598,6 +638,14 @@
                 sbSaveDebounce: null,
                 sbSaving: false,
 
+                // 常用連結區
+                links: [
+                    { label: '🎙️ 英語發音練習繳交', url: 'https://s109802226.github.io/classroom-tool/pronunciation/' },
+                ],
+                showLinkForm: false,
+                newLinkLabel: '',
+                newLinkUrl: '',
+
                 // Reorderable layout mode
                 reorderMode: false,
 
@@ -747,6 +795,30 @@
                         return true;
                     }
                     return false;
+                },
+
+                // ── 常用連結區 ──
+                addLink() {
+                    if (this.guardEdit()) return;
+                    const label = (this.newLinkLabel || '').trim();
+                    let url = (this.newLinkUrl || '').trim();
+                    if (!label || !url) {
+                        alert('請填寫連結名稱和網址！');
+                        return;
+                    }
+                    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+                    this.links.push({ label, url });
+                    this.newLinkLabel = '';
+                    this.newLinkUrl = '';
+                    this.showLinkForm = false;
+                    this.saveLocalState();
+                },
+
+                removeLink(i) {
+                    if (this.guardEdit()) return;
+                    if (!confirm('確定要刪除「' + this.links[i].label + '」嗎？')) return;
+                    this.links.splice(i, 1);
+                    this.saveLocalState();
                 },
 
                 adjustPoints(idx, delta) {
@@ -955,6 +1027,9 @@
                         const found = this.orderBadges.find(b => b.id === d.orderStatus.id);
                         if (found) this.currentOrderStatus = found;
                     }
+                    if (d.links !== undefined) {
+                        this.links = d.links || [];
+                    }
                     if (d.logDate && d.logDate !== this.todayDateKey) {
                         // 雲端記錄的是舊的一天 → 今天尚未開始
                         this.students.forEach(s => { s.points = 0; s.cloudPoints = s.totalPoints || 0; });
@@ -995,6 +1070,7 @@
                                 wbContent: document.getElementById('whiteboard')?.innerHTML || '',
                                 orderStatus: this.currentOrderStatus,
                                 logDate: this.todayDateKey,
+                                links: this.links,
                             },
                             updated_at: new Date().toISOString(),
                         };
