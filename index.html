@@ -122,6 +122,19 @@
                 <span>🎙️ 英語發音練習繳交</span>
             </a>
 
+            <!-- LAYOUT EDIT & EMBED BUTTONS (owner only) -->
+            <button x-show="!readOnly" x-cloak @click="toggleLayoutEdit()"
+                    class="btn-cute border-3 border-slate-800 font-extrabold px-3 py-2 rounded-2xl text-xs md:text-sm shadow-cute-sm flex items-center gap-1.5"
+                    :class="layoutEdit ? 'bg-amber-400 hover:bg-amber-300 text-slate-900' : 'bg-orange-300 hover:bg-orange-200 text-slate-900'">
+                <i class="fa-solid fa-arrows-up-down-left-right text-base"></i>
+                <span x-text="layoutEdit ? '✅ 完成調整' : '↕️ 調整版面'"></span>
+            </button>
+            <button x-show="!readOnly && layoutEdit" x-cloak @click="showEmbedForm = !showEmbedForm"
+                    class="btn-cute bg-fuchsia-300 hover:bg-fuchsia-200 border-3 border-slate-800 text-slate-900 font-extrabold px-3 py-2 rounded-2xl text-xs md:text-sm shadow-cute-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-window-maximize text-base"></i>
+                <span>＋嵌入網頁/YouTube</span>
+            </button>
+
             <!-- HISTORY LOG & EXPORT BUTTON -->
             <button @click="openHistoryModal()" class="btn-cute bg-sky-300 hover:bg-sky-200 border-3 border-slate-800 text-slate-900 font-extrabold px-3 py-2 rounded-2xl text-xs md:text-sm shadow-cute-sm flex items-center gap-1.5">
                 <i class="fa-solid fa-clock-rotate-left text-base text-sky-950"></i>
@@ -131,10 +144,10 @@
     </header>
 
     <!-- MAIN CONTENT AREA -->
-    <main class="max-w-7xl mx-auto space-y-5">
+    <main class="max-w-7xl mx-auto flex flex-col gap-5">
 
         <!-- READ-ONLY BANNER FOR VISITORS -->
-        <div x-show="readOnly" x-cloak class="bg-sky-100 border-3 border-slate-800 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2">
+        <div x-show="readOnly" x-cloak class="bg-sky-100 border-3 border-slate-800 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2" style="order:-10">
             <span class="font-extrabold text-sm text-sky-950">👁️ 觀看模式：目前顯示最新班級紀錄，只有老師登入後才能修改</span>
             <div class="flex items-center gap-2">
                 <span class="text-[11px] font-bold text-sky-800" x-text="'最後更新：' + (lastUpdated || '載入中…')"></span>
@@ -142,51 +155,91 @@
             </div>
         </div>
 
-        <!-- QUICK LINKS SECTION（老師可在網站上直接新增/刪除，自動同步雲端） -->
-        <section class="bg-white rounded-3xl p-4 md:p-5 shadow-cute border-4 border-slate-800">
-            <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
-                <h2 class="text-lg font-black text-slate-800 flex items-center gap-2">
-                    <span>🔗</span> 常用連結
-                </h2>
-                <button x-show="!readOnly" x-cloak @click="showLinkForm = !showLinkForm"
-                        class="btn-cute bg-violet-300 hover:bg-violet-200 border-2 border-slate-800 rounded-xl px-3 py-1.5 text-xs font-black text-slate-900 flex items-center gap-1">
-                    <i class="fa-solid fa-plus text-[10px]"></i> 新增連結
-                </button>
-            </div>
+        <!-- LAYOUT EDIT BANNER -->
+        <div x-show="layoutEdit" x-cloak class="bg-amber-100 border-3 border-amber-500 rounded-2xl p-3 flex flex-wrap items-center justify-between gap-2" style="order:-9">
+            <span class="font-extrabold text-sm text-amber-950">↕️ 版面調整模式：可用每個區塊的「⬆ 上移／⬇ 下移」改變順序，也可新增嵌入網頁或 YouTube 區塊。完成後按上方「✅ 完成調整」。</span>
+        </div>
 
-            <div class="flex flex-wrap gap-2 md:gap-3">
-                <template x-for="(link, i) in links" :key="i + link.url">
-                    <div class="relative group">
-                        <a :href="link.url" target="_blank" rel="noopener"
-                           class="btn-cute bg-violet-100 hover:bg-violet-200 border-3 border-slate-800 rounded-2xl px-4 py-2 text-xs md:text-sm font-extrabold text-slate-900 flex items-center gap-2">
-                            <span x-text="link.label"></span>
-                            <i class="fa-solid fa-arrow-up-right-from-square text-[10px] text-slate-500"></i>
-                        </a>
-                        <button x-show="!readOnly" x-cloak @click="removeLink(i)" title="刪除此連結"
-                                class="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 hover:bg-rose-400 text-white rounded-full text-[11px] font-black border-2 border-slate-800 flex items-center justify-center">✕</button>
-                    </div>
-                </template>
-                <div x-show="links.length === 0" class="text-xs font-bold text-slate-400 self-center">
-                    還沒有連結（老師登入後可新增）
+        <!-- ADD EMBED FORM -->
+        <div x-show="showEmbedForm" x-cloak class="bg-fuchsia-50 border-3 border-slate-800 rounded-2xl p-4 space-y-3" style="order:-8">
+            <h3 class="font-black text-slate-800">＋ 新增嵌入網頁 / YouTube 區塊</h3>
+            <div class="grid grid-cols-1 md:grid-cols-[1fr_2fr_120px_auto] gap-2 items-end">
+                <div>
+                    <label class="text-[11px] font-bold text-slate-600">標題</label>
+                    <input x-model="embedTitle" placeholder="例如：英文歌曲" class="w-full border-2 border-slate-800 rounded-xl p-2 text-xs font-bold">
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-slate-600">網址（支援一般網頁或 YouTube 連結）</label>
+                    <input x-model="embedUrl" placeholder="https://www.youtube.com/watch?v=... 或 https://..." class="w-full border-2 border-slate-800 rounded-xl p-2 text-xs font-mono">
+                </div>
+                <div>
+                    <label class="text-[11px] font-bold text-slate-600">高度(px)</label>
+                    <input x-model.number="embedHeight" type="number" min="200" max="1200" class="w-full border-2 border-slate-800 rounded-xl p-2 text-xs font-bold">
+                </div>
+                <button @click="addEmbed()" class="btn-cute bg-fuchsia-400 hover:bg-fuchsia-300 border-2 border-slate-800 rounded-xl px-4 py-2 text-xs font-black whitespace-nowrap">✅ 新增嵌入區塊</button>
+            </div>
+            <p class="text-[11px] font-bold text-slate-500">小提醒：YouTube 連結會自動轉成可播放的嵌入格式；部分網站會禁止被嵌入，若無法顯示可改放在「常用連結區」。</p>
+        </div>
+
+        <!-- QUICK LINKS SECTION（老師可在網站上直接新增/刪除，自動同步雲端） -->
+        <div class="layout-block" :style="{ order: blockOrder('links') }">
+            <div x-show="layoutEdit" class="flex items-center justify-between mb-2 bg-amber-100 border-2 border-amber-400 rounded-xl px-3 py-1">
+                <span class="text-xs font-black text-amber-900">↕️ 常用連結區</span>
+                <div class="flex gap-1">
+                    <button @click="moveBlock('links', -1)" class="btn-cute bg-white border-2 border-slate-800 rounded-lg px-2 py-0.5 text-xs font-black">⬆ 上移</button>
+                    <button @click="moveBlock('links', 1)" class="btn-cute bg-white border-2 border-slate-800 rounded-lg px-2 py-0.5 text-xs font-black">⬇ 下移</button>
                 </div>
             </div>
+            <section class="bg-white rounded-3xl p-4 md:p-5 shadow-cute border-4 border-slate-800">
+                <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+                    <h2 class="text-lg font-black text-slate-800 flex items-center gap-2">
+                        <span>🔗</span> 常用連結
+                    </h2>
+                    <button x-show="!readOnly" x-cloak @click="showLinkForm = !showLinkForm"
+                            class="btn-cute bg-violet-300 hover:bg-violet-200 border-2 border-slate-800 rounded-xl px-3 py-1.5 text-xs font-black text-slate-900 flex items-center gap-1">
+                        <i class="fa-solid fa-plus text-[10px]"></i> 新增連結
+                    </button>
+                </div>
 
-            <!-- 新增連結表單 -->
-            <div x-show="showLinkForm" x-cloak class="mt-3 bg-slate-50 border-2 border-slate-800 rounded-2xl p-3 grid grid-cols-1 md:grid-cols-[180px_1fr_auto_auto] gap-2 items-center">
-                <input x-model="newLinkLabel" placeholder="名稱，例如：英語發音練習"
-                       class="border-2 border-slate-800 rounded-xl p-2 text-xs font-bold focus:ring-2 focus:ring-violet-400 focus:outline-none">
-                <input x-model="newLinkUrl" placeholder="網址，例如 https://example.com"
-                       class="border-2 border-slate-800 rounded-xl p-2 text-xs font-mono focus:ring-2 focus:ring-violet-400 focus:outline-none">
-                <button @click="addLink()" class="btn-cute bg-emerald-400 hover:bg-emerald-300 border-2 border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-slate-900 whitespace-nowrap">✅ 加入</button>
-                <button @click="showLinkForm = false" class="text-xs font-bold text-slate-500 hover:text-slate-800 px-2">取消</button>
+                <div class="flex flex-wrap gap-2 md:gap-3">
+                    <template x-for="(link, i) in links" :key="i + link.url">
+                        <div class="relative group">
+                            <a :href="link.url" target="_blank" rel="noopener"
+                               class="btn-cute bg-violet-100 hover:bg-violet-200 border-3 border-slate-800 rounded-2xl px-4 py-2 text-xs md:text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                                <span x-text="link.label"></span>
+                                <i class="fa-solid fa-arrow-up-right-from-square text-[10px] text-slate-500"></i>
+                            </a>
+                            <button x-show="!readOnly" x-cloak @click="removeLink(i)" title="刪除此連結"
+                                    class="absolute -top-2 -right-2 w-6 h-6 bg-rose-500 hover:bg-rose-400 text-white rounded-full text-[11px] font-black border-2 border-slate-800 flex items-center justify-center">✕</button>
+                        </div>
+                    </template>
+                    <div x-show="links.length === 0" class="text-xs font-bold text-slate-400 self-center">
+                        還沒有連結（老師登入後可新增）
+                    </div>
+                </div>
+
+                <!-- 新增連結表單 -->
+                <div x-show="showLinkForm" x-cloak class="mt-3 bg-slate-50 border-2 border-slate-800 rounded-2xl p-3 grid grid-cols-1 md:grid-cols-[180px_1fr_auto_auto] gap-2 items-center">
+                    <input x-model="newLinkLabel" placeholder="名稱，例如：英語發音練習"
+                           class="border-2 border-slate-800 rounded-xl p-2 text-xs font-bold focus:ring-2 focus:ring-violet-400 focus:outline-none">
+                    <input x-model="newLinkUrl" placeholder="網址，例如 https://example.com"
+                           class="border-2 border-slate-800 rounded-xl p-2 text-xs font-mono focus:ring-2 focus:ring-violet-400 focus:outline-none">
+                    <button @click="addLink()" class="btn-cute bg-emerald-400 hover:bg-emerald-300 border-2 border-slate-800 rounded-xl px-3 py-2 text-xs font-black text-slate-900 whitespace-nowrap">✅ 加入</button>
+                    <button @click="showLinkForm = false" class="text-xs font-bold text-slate-500 hover:text-slate-800 px-2">取消</button>
+                </div>
+            </section>
+        </div>
+
+        <!-- 1.1 ATTENDANCE CHECK-IN (3 STUDENTS) -->
+        <div class="layout-block" :style="{ order: blockOrder('attendance') }">
+            <div x-show="layoutEdit" class="flex items-center justify-between mb-2 bg-amber-100 border-2 border-amber-400 rounded-xl px-3 py-1">
+                <span class="text-xs font-black text-amber-900">↕️ 點名與到校打卡區</span>
+                <div class="flex gap-1">
+                    <button @click="moveBlock('attendance', -1)" class="btn-cute bg-white border-2 border-slate-800 rounded-lg px-2 py-0.5 text-xs font-black">⬆ 上移</button>
+                    <button @click="moveBlock('attendance', 1)" class="btn-cute bg-white border-2 border-slate-800 rounded-lg px-2 py-0.5 text-xs font-black">⬇ 下移</button>
+                </div>
             </div>
-        </section>
-
-        <!-- 1. FIRST SECTION: ATTENDANCE & POINT ACCUMULATION & CHECKIN -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 mb-5">
-
-            <!-- 1.1 ATTENDANCE CHECK-IN (3 STUDENTS) -->
-            <div class="lg:col-span-12 bg-white rounded-3xl p-4 md:p-5 shadow-cute border-4 border-slate-800">
+            <div class="bg-white rounded-3xl p-4 md:p-5 shadow-cute border-4 border-slate-800">
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                     <div class="flex items-center gap-2">
                         <span class="text-2xl">📋</span>
@@ -223,9 +276,18 @@
                     </template>
                 </div>
             </div>
+        </div>
 
-            <!-- 1.2 STUDENT POINTS ACCUMULATION (3 STUDENTS) -->
-            <div class="lg:col-span-12 bg-white rounded-3xl p-4 md:p-5 shadow-cute border-4 border-slate-800">
+        <!-- 1.2 STUDENT POINTS ACCUMULATION (3 STUDENTS) -->
+        <div class="layout-block" :style="{ order: blockOrder('points') }">
+            <div x-show="layoutEdit" class="flex items-center justify-between mb-2 bg-amber-100 border-2 border-amber-400 rounded-xl px-3 py-1">
+                <span class="text-xs font-black text-amber-900">↕️ 學生點數累積區</span>
+                <div class="flex gap-1">
+                    <button @click="moveBlock('points', -1)" class="btn-cute bg-white border-2 border-slate-800 rounded-lg px-2 py-0.5 text-xs font-black">⬆ 上移</button>
+                    <button @click="moveBlock('points', 1)" class="btn-cute bg-white border-2 border-slate-800 rounded-lg px-2 py-0.5 text-xs font-black">⬇ 下移</button>
+                </div>
+            </div>
+            <div class="bg-white rounded-3xl p-4 md:p-5 shadow-cute border-4 border-slate-800">
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                     <div class="flex items-center gap-2">
                         <span class="text-2xl">🏅</span>
@@ -289,9 +351,18 @@
                     </template>
                 </div>
             </div>
+        </div>
 
-            <!-- 1.3 CLEANING & BRUSHING CHECK-IN TRACKER -->
-            <div class="lg:col-span-12 bg-white rounded-3xl p-4 md:p-5 shadow-cute border-4 border-slate-800">
+        <!-- 1.3 CLEANING & BRUSHING CHECK-IN TRACKER -->
+        <div class="layout-block" :style="{ order: blockOrder('checkin') }">
+            <div x-show="layoutEdit" class="flex items-center justify-between mb-2 bg-amber-100 border-2 border-amber-400 rounded-xl px-3 py-1">
+                <span class="text-xs font-black text-amber-900">↕️ 打掃與刷牙打卡區</span>
+                <div class="flex gap-1">
+                    <button @click="moveBlock('checkin', -1)" class="btn-cute bg-white border-2 border-slate-800 rounded-lg px-2 py-0.5 text-xs font-black">⬆ 上移</button>
+                    <button @click="moveBlock('checkin', 1)" class="btn-cute bg-white border-2 border-slate-800 rounded-lg px-2 py-0.5 text-xs font-black">⬇ 下移</button>
+                </div>
+            </div>
+            <div class="bg-white rounded-3xl p-4 md:p-5 shadow-cute border-4 border-slate-800">
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                     <div class="flex items-center gap-2">
                         <span class="text-2xl">✨</span>
@@ -338,14 +409,18 @@
                     </template>
                 </div>
             </div>
-
         </div>
 
-        <!-- 2. SECOND SECTION: ELECTRONIC WHITEBOARD & RIGHT SIDEBAR TOOLKIT -->
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
-
-            <!-- 2.1 MULTI-FUNCTIONAL WHITEBOARD AREA -->
-            <div class="lg:col-span-8 bg-white rounded-3xl p-4 md:p-5 shadow-cute border-4 border-slate-800 flex flex-col h-[520px]">
+        <!-- 2.1 MULTI-FUNCTIONAL WHITEBOARD AREA -->
+        <div class="layout-block" :style="{ order: blockOrder('whiteboard') }">
+            <div x-show="layoutEdit" class="flex items-center justify-between mb-2 bg-amber-100 border-2 border-amber-400 rounded-xl px-3 py-1">
+                <span class="text-xs font-black text-amber-900">↕️ 電子白板公告區</span>
+                <div class="flex gap-1">
+                    <button @click="moveBlock('whiteboard', -1)" class="btn-cute bg-white border-2 border-slate-800 rounded-lg px-2 py-0.5 text-xs font-black">⬆ 上移</button>
+                    <button @click="moveBlock('whiteboard', 1)" class="btn-cute bg-white border-2 border-slate-800 rounded-lg px-2 py-0.5 text-xs font-black">⬇ 下移</button>
+                </div>
+            </div>
+            <div class="bg-white rounded-3xl p-4 md:p-5 shadow-cute border-4 border-slate-800 flex flex-col h-[520px]">
                 <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
                     <div class="flex items-center gap-2">
                         <span class="text-2xl">✏️</span>
@@ -387,9 +462,18 @@
                     2. 放學前請記得打掃與刷牙打卡喔！
                 </div>
             </div>
+        </div>
 
-            <!-- 2.2 RIGHT SIDEBAR TOOLKIT -->
-            <div class="lg:col-span-4 space-y-4">
+        <!-- 2.2 RIGHT SIDEBAR TOOLKIT (秩序/計時/抽籤) -->
+        <div class="layout-block" :style="{ order: blockOrder('sidebar') }">
+            <div x-show="layoutEdit" class="flex items-center justify-between mb-2 bg-amber-100 border-2 border-amber-400 rounded-xl px-3 py-1">
+                <span class="text-xs font-black text-amber-900">↕️ 秩序／計時／抽籤工具</span>
+                <div class="flex gap-1">
+                    <button @click="moveBlock('sidebar', -1)" class="btn-cute bg-white border-2 border-slate-800 rounded-lg px-2 py-0.5 text-xs font-black">⬆ 上移</button>
+                    <button @click="moveBlock('sidebar', 1)" class="btn-cute bg-white border-2 border-slate-800 rounded-lg px-2 py-0.5 text-xs font-black">⬇ 下移</button>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
 
                 <!-- 2.2.1 CLASS ORDER BADGE SELECTOR -->
                 <div class="bg-white rounded-3xl p-4 shadow-cute border-4 border-slate-800">
@@ -496,8 +580,32 @@
                 </div>
 
             </div>
-
         </div>
+
+        <!-- EMBED BLOCKS（嵌入網頁 / YouTube） -->
+        <template x-for="emb in embeds" :key="'embed-' + emb.id">
+            <div class="layout-block" :style="{ order: blockOrder('embed_' + emb.id) }">
+                <div x-show="layoutEdit" class="flex items-center justify-between mb-2 bg-fuchsia-100 border-2 border-fuchsia-400 rounded-xl px-3 py-1">
+                    <span class="text-xs font-black text-fuchsia-900" x-text="'↕️ 嵌入區塊：' + emb.title"></span>
+                    <div class="flex gap-1">
+                        <button @click="moveBlock('embed_' + emb.id, -1)" class="btn-cute bg-white border-2 border-slate-800 rounded-lg px-2 py-0.5 text-xs font-black">⬆ 上移</button>
+                        <button @click="moveBlock('embed_' + emb.id, 1)" class="btn-cute bg-white border-2 border-slate-800 rounded-lg px-2 py-0.5 text-xs font-black">⬇ 下移</button>
+                        <button @click="removeEmbed(emb.id)" class="btn-cute bg-rose-500 hover:bg-rose-400 text-white border-2 border-slate-800 rounded-lg px-2 py-0.5 text-xs font-black">🗑 刪除</button>
+                    </div>
+                </div>
+                <section class="bg-white rounded-3xl p-4 md:p-5 shadow-cute border-4 border-slate-800">
+                    <div class="flex items-center justify-between flex-wrap gap-2 mb-3">
+                        <h2 class="text-lg font-black text-slate-800 flex items-center gap-2">
+                            <span>🪟</span> <span x-text="emb.title"></span>
+                        </h2>
+                        <a :href="emb.url" target="_blank" rel="noopener" class="text-xs font-bold text-indigo-600 hover:underline">在新分頁開啟 ↗</a>
+                    </div>
+                    <iframe :src="emb.embedUrl" :style="'width:100%; height:' + (emb.height || 360) + 'px; border:3px solid #1e293b; border-radius:16px; background:#f8fafc;'"
+                            loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+                    <p class="text-[11px] font-bold text-slate-400 mt-2">若內容無法顯示，可能是該網站禁止嵌入，可點「在新分頁開啟」。</p>
+                </section>
+            </div>
+        </template>
 
     </main>
 
@@ -645,6 +753,15 @@
                 showLinkForm: false,
                 newLinkLabel: '',
                 newLinkUrl: '',
+
+                // 版面配置與嵌入區塊（可自由調整位置）
+                layoutEdit: false,
+                layout: ['links', 'attendance', 'points', 'checkin', 'whiteboard', 'sidebar'],
+                embeds: [],
+                showEmbedForm: false,
+                embedTitle: '',
+                embedUrl: '',
+                embedHeight: 360,
 
                 // Reorderable layout mode
                 reorderMode: false,
@@ -818,6 +935,94 @@
                     if (this.guardEdit()) return;
                     if (!confirm('確定要刪除「' + this.links[i].label + '」嗎？')) return;
                     this.links.splice(i, 1);
+                    this.saveLocalState();
+                },
+
+                // ── 版面配置與嵌入區塊 ──
+                defaultLayout() {
+                    return ['links', 'attendance', 'points', 'checkin', 'whiteboard', 'sidebar'];
+                },
+
+                normalizeLayout() {
+                    const core = this.defaultLayout();
+                    let lay = Array.isArray(this.layout) ? this.layout.filter(Boolean) : [];
+                    // 補齊缺少的核心區塊
+                    core.forEach(id => { if (!lay.includes(id)) lay.push(id); });
+                    // 加入尚未在 layout 中的嵌入區塊
+                    (this.embeds || []).forEach(e => {
+                        const key = 'embed_' + e.id;
+                        if (!lay.includes(key)) lay.push(key);
+                    });
+                    // 移除已不存在的嵌入區塊
+                    const validEmbeds = new Set((this.embeds || []).map(e => 'embed_' + e.id));
+                    lay = lay.filter(id => !id.startsWith('embed_') || validEmbeds.has(id));
+                    this.layout = lay;
+                },
+
+                blockOrder(id) {
+                    const idx = this.layout.indexOf(id);
+                    return idx === -1 ? 999 : idx;
+                },
+
+                toggleLayoutEdit() {
+                    if (this.readOnly) { alert('請先登入才能調整版面'); return; }
+                    this.layoutEdit = !this.layoutEdit;
+                },
+
+                moveBlock(id, dir) {
+                    if (this.guardEdit()) return;
+                    this.normalizeLayout();
+                    const i = this.layout.indexOf(id);
+                    const j = i + dir;
+                    if (i < 0 || j < 0 || j >= this.layout.length) return;
+                    const arr = this.layout.slice();
+                    [arr[i], arr[j]] = [arr[j], arr[i]];
+                    this.layout = arr;
+                    this.saveLocalState();
+                },
+
+                embedToEmbedUrl(url) {
+                    try {
+                        const u = new URL(url);
+                        // YouTube watch / shorts / youtu.be → embed
+                        if (u.hostname.includes('youtu.be')) {
+                            const id = u.pathname.replace('/', '');
+                            if (id) return 'https://www.youtube.com/embed/' + id;
+                        }
+                        if (u.hostname.includes('youtube.com')) {
+                            if (u.pathname.startsWith('/embed/')) return url;
+                            if (u.pathname.startsWith('/shorts/')) return 'https://www.youtube.com/embed/' + u.pathname.split('/')[2];
+                            const v = u.searchParams.get('v');
+                            if (v) return 'https://www.youtube.com/embed/' + v;
+                        }
+                    } catch (e) {}
+                    return url;
+                },
+
+                addEmbed() {
+                    if (this.guardEdit()) return;
+                    const title = (this.embedTitle || '').trim() || '嵌入內容';
+                    let url = (this.embedUrl || '').trim();
+                    if (!url) { alert('請輸入要嵌入的網址！'); return; }
+                    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+                    const id = 'e' + Date.now().toString(36);
+                    const height = Math.max(200, Math.min(1200, Number(this.embedHeight) || 360));
+                    this.embeds.push({ id, title, url, embedUrl: this.embedToEmbedUrl(url), height });
+                    this.normalizeLayout();
+                    this.embedTitle = '';
+                    this.embedUrl = '';
+                    this.embedHeight = 360;
+                    this.showEmbedForm = false;
+                    this.saveLocalState();
+                },
+
+                removeEmbed(id) {
+                    if (this.guardEdit()) return;
+                    const idx = this.embeds.findIndex(e => e.id === id);
+                    if (idx < 0) return;
+                    if (!confirm('確定要刪除嵌入區塊「' + this.embeds[idx].title + '」嗎？')) return;
+                    this.embeds.splice(idx, 1);
+                    this.normalizeLayout();
                     this.saveLocalState();
                 },
 
@@ -1030,11 +1235,28 @@
                     if (d.links !== undefined) {
                         this.links = d.links || [];
                     }
+                    if (d.embeds !== undefined) {
+                        this.embeds = (d.embeds || []).map(e => ({
+                            height: 360,
+                            ...e,
+                            embedUrl: this.embedToEmbedUrl(e.url || e.embedUrl || ''),
+                        }));
+                    }
+                    if (d.layout !== undefined) {
+                        this.layout = d.layout || this.defaultLayout();
+                    }
+                    this.normalizeLayout();
                     if (d.logDate && d.logDate !== this.todayDateKey) {
                         // 雲端記錄的是舊的一天 → 今天尚未開始
                         this.students.forEach(s => { s.points = 0; s.cloudPoints = s.totalPoints || 0; });
                     }
-                    localStorage.setItem('classroom_app_state', JSON.stringify({ students: this.students, wbContent: d.wbContent || '' }));
+                    localStorage.setItem('classroom_app_state', JSON.stringify({
+                        students: this.students,
+                        wbContent: d.wbContent || '',
+                        links: this.links,
+                        embeds: this.embeds,
+                        layout: this.layout,
+                    }));
                 },
 
                 scheduleCloudSave() {
@@ -1071,6 +1293,8 @@
                                 orderStatus: this.currentOrderStatus,
                                 logDate: this.todayDateKey,
                                 links: this.links,
+                                embeds: this.embeds,
+                                layout: this.layout,
                             },
                             updated_at: new Date().toISOString(),
                         };
@@ -1121,6 +1345,9 @@
                         students: this.students,
                         wbContent: document.getElementById('whiteboard')?.innerHTML || '',
                         logDate: this.todayDateKey,
+                        links: this.links,
+                        embeds: this.embeds,
+                        layout: this.layout,
                     };
                     const saved = localStorage.getItem('classroom_app_state');
                     if (saved) {
@@ -1155,7 +1382,18 @@
                             if (data.wbContent) {
                                 document.getElementById('whiteboard').innerHTML = data.wbContent;
                             }
+                            if (data.links !== undefined) this.links = data.links || [];
+                            if (data.embeds !== undefined) {
+                                this.embeds = (data.embeds || []).map(e => ({
+                                    height: 360, ...e,
+                                    embedUrl: this.embedToEmbedUrl(e.url || e.embedUrl || ''),
+                                }));
+                            }
+                            if (data.layout !== undefined) this.layout = data.layout || this.defaultLayout();
+                            this.normalizeLayout();
                         } catch (e) {}
+                    } else {
+                        this.normalizeLayout();
                     }
                 },
 
